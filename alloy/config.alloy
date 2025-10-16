@@ -1,22 +1,26 @@
 // Grafana Alloy Configuration for Log Collection
 
-// Discover Docker containers
+// Discover Docker containers via API
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
-  refresh_interval = "5s"
+}
+
+// Filter to only log-generator
+discovery.relabel "log_generator" {
+  targets = discovery.docker.containers.targets
   
-  filter {
-    name   = "name"
-    values = ["log-generator"]
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/log-generator"
+    action        = "keep"
   }
 }
 
-// Read logs from Docker containers
+// Read logs via Docker API (no file access needed!)
 loki.source.docker "log_generator" {
-  host             = "unix:///var/run/docker.sock"
-  targets          = discovery.docker.containers.targets
-  forward_to       = [loki.process.parse_logs.receiver]
-  refresh_interval = "5s"
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.log_generator.output
+  forward_to = [loki.process.parse_logs.receiver]
 }
 
 // Process and parse logs
@@ -34,12 +38,6 @@ loki.process "parse_logs" {
   stage.timestamp {
     source = "time"
     format = "RFC3339Nano"
-  }
-  
-  // Drop logs older than 1 hour
-  stage.drop {
-    older_than = "1h"
-    source     = "time"
   }
   
   // Parse the actual log content (JSON logs from our app)

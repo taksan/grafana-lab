@@ -195,13 +195,13 @@ rate({container="log-generator"}[1m])
 
 ### Log Labels Available
 
-Promtail automatically extracts these labels from the JSON logs:
+Alloy automatically extracts these labels from the JSON logs:
 - `container` - Container name (log-generator)
 - `level` - Log level (INFO, WARN, ERROR)
-- `client_ip` - Client IP address
-- `user_id` - User ID
 - `method` - HTTP method (GET, POST, etc.)
 - `status_code` - HTTP status code
+- `detected_level` - Auto-detected log level
+- `service_name` - Service name
 
 ## 📈 Prometheus Metrics
 
