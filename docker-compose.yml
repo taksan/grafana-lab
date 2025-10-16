@@ -51,16 +51,17 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # Alloy - Telemetry Collector
-  alloy:
-    image: grafana/alloy:latest
-    container_name: alloy
+  # Promtail - Log Collector
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    user: "0:998"  # root user with docker group
     volumes:
-      - ./alloy/config.alloy:/etc/alloy/config.alloy
-      - /mnt/extra-stuff/docker/containers:/var/lib/docker/containers:ro
-    command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+      - ./promtail/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
     ports:
-      - "12345:12345"
+      - "9080:9080"
     networks:
       - monitoring
     depends_on:

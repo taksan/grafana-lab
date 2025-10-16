@@ -12,7 +12,7 @@ A complete monitoring lab environment featuring Grafana, Prometheus, and a custo
 └────────┬────────┘      └──────────────┘      └──────┬──────┘
          │                                             │
          │ logs          ┌──────────────┐             │
-         └──────────────▶│ Grafana Alloy│             │
+         └──────────────▶│   Promtail   │             │
                          │ (Collector)  │             │
                          └──────┬───────┘             │
                                 │                     │
@@ -43,13 +43,14 @@ A complete monitoring lab environment featuring Grafana, Prometheus, and a custo
 - Provides powerful log querying with LogQL
 - Accessible at `http://localhost:3100`
 
-### 4. Grafana Alloy
-- Modern telemetry collector (replaces Promtail)
-- Collects logs from Docker containers
+### 4. Promtail
+- Log collector agent for Loki
+- Uses Docker service discovery to automatically detect containers
 - Parses JSON log format
 - Extracts labels for efficient querying
-- Sends logs to Loki
-- Built-in web UI at port 12345
+- Accessible at `http://localhost:9080`
+
+> **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover any containers on certain systems. This is a known issue tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). We've switched to Promtail which has mature and reliable Docker service discovery.
 
 ### 5. Grafana
 - Pre-configured with Prometheus and Loki datasources
@@ -85,7 +86,7 @@ A complete monitoring lab environment featuring Grafana, Prometheus, and a custo
    - **Grafana**: http://localhost:3001 (admin/admin)
    - **Prometheus**: http://localhost:9090
    - **Loki**: http://localhost:3100
-   - **Alloy UI**: http://localhost:12345
+   - **Promtail**: http://localhost:9080
    - **Log Generator API**: http://localhost:8001
    - **API Docs**: http://localhost:8001/docs
 
@@ -195,13 +196,12 @@ rate({container="log-generator"}[1m])
 
 ### Log Labels Available
 
-Alloy automatically extracts these labels from the JSON logs:
+Promtail automatically extracts these labels from the JSON logs:
 - `container` - Container name (log-generator)
+- `container_id` - Docker container ID
 - `level` - Log level (INFO, WARN, ERROR)
 - `method` - HTTP method (GET, POST, etc.)
 - `status_code` - HTTP status code
-- `detected_level` - Auto-detected log level
-- `service_name` - Service name
 
 ## 📈 Prometheus Metrics
 
