@@ -1,25 +1,29 @@
 // Grafana Alloy Configuration for Log Collection
 
-// Discover Docker containers via API
-discovery.docker "containers" {
-  host = "unix:///var/run/docker.sock"
+// Discover Docker log files
+local.file_match "docker_logs" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/lib/docker/containers/*/*-json.log",
+    job         = "docker",
+  }]
 }
 
-// Filter to only log-generator
-discovery.relabel "log_generator" {
-  targets = discovery.docker.containers.targets
+// Filter and add labels based on file path
+discovery.relabel "add_container_name" {
+  targets = local.file_match.docker_logs.targets
   
+  // Extract container ID from path
   rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/log-generator"
-    action        = "keep"
+    source_labels = ["__path__"]
+    regex         = "/var/lib/docker/containers/([^/]+)/.*"
+    target_label  = "container_id"
   }
 }
 
-// Read logs via Docker API (no file access needed!)
-loki.source.docker "log_generator" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.relabel.log_generator.output
+// Read logs from files
+loki.source.file "docker_logs" {
+  targets    = discovery.relabel.add_container_name.output
   forward_to = [loki.process.parse_logs.receiver]
 }
 

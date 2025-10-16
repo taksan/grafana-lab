@@ -7,6 +7,15 @@ services:
       - "8001:8000"
     networks:
       - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "container,service"
+    labels:
+      container: "log-generator"
+      service: "log-generator"
     restart: unless-stopped
 
   # Prometheus - Metrics Collection
@@ -48,7 +57,7 @@ services:
     container_name: alloy
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy
-      - /var/run/docker.sock:/var/run/docker.sock  # Only Docker socket needed!
+      - /mnt/extra-stuff/docker/containers:/var/lib/docker/containers:ro
     command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
     ports:
       - "12345:12345"
