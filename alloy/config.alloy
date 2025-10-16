@@ -1,0 +1,83 @@
+// Grafana Alloy Configuration for Log Collection
+
+// Discover Docker containers
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+  
+  filter {
+    name   = "name"
+    values = ["log-generator"]
+  }
+}
+
+// Read logs from Docker containers
+loki.source.docker "log_generator" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.docker.containers.targets
+  forward_to       = [loki.process.parse_logs.receiver]
+  refresh_interval = "5s"
+}
+
+// Process and parse logs
+loki.process "parse_logs" {
+  // Parse Docker JSON format
+  stage.json {
+    expressions = {
+      log    = "log",
+      stream = "stream",
+      time   = "time",
+    }
+  }
+  
+  // Extract timestamp
+  stage.timestamp {
+    source = "time"
+    format = "RFC3339Nano"
+  }
+  
+  // Drop logs older than 1 hour
+  stage.drop {
+    older_than = "1h"
+    source     = "time"
+  }
+  
+  // Parse the actual log content (JSON logs from our app)
+  stage.json {
+    source = "log"
+    expressions = {
+      timestamp   = "timestamp",
+      level       = "level",
+      client_ip   = "client_ip",
+      user_id     = "user_id",
+      method      = "http.request.method",
+      status_code = "http.response.status_code",
+      bytes       = "http.response.bytes",
+      url         = "http.url",
+      message     = "message",
+    }
+  }
+  
+  // Add extracted fields as labels
+  stage.labels {
+    values = {
+      level       = "",
+      method      = "",
+      status_code = "",
+    }
+  }
+  
+  // Output the log
+  stage.output {
+    source = "log"
+  }
+  
+  forward_to = [loki.write.loki_endpoint.receiver]
+}
+
+// Write logs to Loki
+loki.write "loki_endpoint" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
