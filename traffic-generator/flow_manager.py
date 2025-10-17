@@ -229,6 +229,7 @@ class FlowManager:
         # Include session_id in the context
         context_with_session = flow.user_context.copy()
         context_with_session['session_id'] = flow.session_id
+        context_with_session['flow_name'] = flow.flow_name
         
         return (next_step, context_with_session)
     

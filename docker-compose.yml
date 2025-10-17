@@ -25,6 +25,9 @@ services:
     container_name: traffic-generator
     ports:
       - "9001:8000"
+    volumes:
+      - ./user_flows.yml:/app/user_flows.yml:ro
+      - ./geo_servers.geojson:/app/geo_servers.geojson:ro
     networks:
       - monitoring
     logging:

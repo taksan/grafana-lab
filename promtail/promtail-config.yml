@@ -51,6 +51,9 @@ scrape_configs:
             city_name: geocode.city_name
             geo_lat: geocode.location.lat
             geo_lon: geocode.location.lon
+            flow_name: flow_name
+            session_id: session_id
+            user_name: user_name
 
       # 3. Create Loki labels from some of the extracted fields.
       # Best practice is to use low-cardinality fields for labels.
@@ -60,4 +63,5 @@ scrape_configs:
           method:
           country_name:
           city_name:
-          user_id:
+          user_name:
+          flow_name:
