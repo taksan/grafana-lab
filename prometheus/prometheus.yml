@@ -2,7 +2,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'log-generator-monitor'
+    monitor: 'traffic-generator-monitor'
 
 scrape_configs:
   # Prometheus self-monitoring
@@ -10,9 +10,9 @@ scrape_configs:
   #   static_configs:
   #     - targets: ['localhost:9090']
 
-  # Log Generator Application
-  - job_name: 'log-generator'
+  # Traffic Generator Application
+  - job_name: 'traffic-generator'
     scrape_interval: 5s
     static_configs:
-      - targets: ['log-generator:8000']
+      - targets: ['traffic-generator:8000']
     metrics_path: '/metrics'

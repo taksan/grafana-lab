@@ -1,49 +1,66 @@
-# Grafana + Prometheus Lab with Log Generator
+# Grafana + Prometheus Lab with Traffic Generator
 
-A complete monitoring lab environment featuring Grafana, Prometheus, and a custom log generator application with DDoS simulation capabilities.
+A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a sophisticated traffic generator with geocoding, user flows, and DDoS simulation capabilities.
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐      ┌──────────────┐      ┌─────────────┐
-│  Log Generator  │─────▶│  Prometheus  │─────▶│   Grafana   │
-│   (FastAPI)     │      │   (Metrics)  │      │ (Dashboards)│
-│   Port: 8001    │      │  Port: 9090  │      │  Port: 3001 │
-└────────┬────────┘      └──────────────┘      └──────┬──────┘
-         │                                             │
-         │ logs          ┌──────────────┐             │
-         └──────────────▶│   Promtail   │             │
-                         │ (Collector)  │             │
-                         └──────┬───────┘             │
-                                │                     │
-                                ▼                     │
-                         ┌──────────────┐             │
-                         │     Loki     │─────────────┘
-                         │(Log Storage) │
-                         │  Port: 3100  │
-                         └──────────────┘
+┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  User Database   │────▶│ Traffic Gen     │────▶│   Prometheus     │
+│   Port: 9500     │     │  Port: 9001     │     │   Port: 9090     │
+└──────────────────┘     └────────┬────────┘     └──────────────────┘
+                                  │
+┌──────────────────┐              │ logs                    │
+│ Server Assign    │              ▼                         │
+│   Port: 9600     │       ┌──────────────┐                │
+└──────────────────┘       │   Promtail   │                │
+                           │  Port: 9080  │                │
+                           └──────┬───────┘                │
+                                  │                         │
+                                  ▼                         │
+                           ┌──────────────┐                │
+                           │     Loki     │                │
+                           │  Port: 3100  │                │
+                           └──────┬───────┘                │
+                                  │                         │
+                                  ▼                         ▼
+                           ┌─────────────────────────────────┐
+                           │          Grafana                │
+                           │         Port: 3001              │
+                           └─────────────────────────────────┘
 ```
 
 ## 📦 Components
 
-### 1. Log Generator
+### 1. Traffic Generator
 - **FastAPI** application that generates realistic HTTP access logs
-- Simulates traffic from different geographic regions
-- Exposes Prometheus metrics at `/metrics`
-- REST API for controlling log generation behavior
-- DDoS simulation feature
+- **Geocoding**: Simulates traffic from 11 countries, 30+ cities with accurate coordinates
+- **User Flows**: Multi-step user journeys (login, browse, checkout, etc.)
+- **Realistic Errors**: Context-aware error generation
+- Exposes Prometheus metrics at `/metrics` including geographic data
+- REST API for controlling traffic generation behavior
+- DDoS simulation feature by region
 
-### 2. Prometheus
-- Scrapes metrics from the log generator every 5 seconds
+### 2. User Database
+- Provides realistic user data for traffic simulation
+- REST API for user management
+- Accessible at `http://localhost:9500`
+
+### 3. Server Assignment
+- Manages server assignment logic
+- Accessible at `http://localhost:9600`
+
+### 4. Prometheus
+- Scrapes metrics from the traffic generator every 5 seconds
 - Stores time-series data
 - Accessible at `http://localhost:9090`
 
-### 3. Loki
-- Aggregates and stores logs from the log generator
+### 5. Loki
+- Aggregates and stores logs from the traffic generator
 - Provides powerful log querying with LogQL
 - Accessible at `http://localhost:3100`
 
-### 4. Promtail
+### 6. Promtail
 - Log collector agent for Loki
 - Uses Docker service discovery to automatically detect containers
 - Parses JSON log format
@@ -52,10 +69,11 @@ A complete monitoring lab environment featuring Grafana, Prometheus, and a custo
 
 > **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover any containers on certain systems. This is a known issue tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). We've switched to Promtail which has mature and reliable Docker service discovery.
 
-### 5. Grafana
+### 7. Grafana
 - Pre-configured with Prometheus and Loki datasources
-- Auto-provisioned dashboard for log generator metrics
+- Auto-provisioned dashboard for traffic generator metrics
 - Query and visualize both metrics and logs
+- **Geomap support** for geographic visualization
 - Default credentials: `admin` / `admin`
 - Accessible at `http://localhost:3001`
 
@@ -87,8 +105,10 @@ A complete monitoring lab environment featuring Grafana, Prometheus, and a custo
    - **Prometheus**: http://localhost:9090
    - **Loki**: http://localhost:3100
    - **Promtail**: http://localhost:9080
-   - **Log Generator API**: http://localhost:8001
-   - **API Docs**: http://localhost:8001/docs
+   - **Traffic Generator API**: http://localhost:9001
+   - **API Docs**: http://localhost:9001/docs
+   - **User Database**: http://localhost:9500
+   - **Server Assignment**: http://localhost:9600
 
 ### Stopping the Lab
 
@@ -115,19 +135,19 @@ The lab includes a pre-configured dashboard with the following panels:
 8. **Min/Max Intervals** - Current log generation intervals
 9. **Total API Requests** - API endpoint usage
 
-## 🎮 Using the Log Generator API
+## 🎮 Using the Traffic Generator API
 
 ### View API Documentation
-Open http://localhost:8001/docs for interactive Swagger documentation.
+Open http://localhost:9001/docs for interactive Swagger documentation.
 
 ### Check Status
 ```bash
-curl http://localhost:8001/status
+curl http://localhost:9001/status
 ```
 
-### Update Log Generation Interval
+### Update Traffic Generation Interval
 ```bash
-curl -X POST http://localhost:8001/update_interval \
+curl -X POST http://localhost:9001/update_interval \
   -H "Content-Type: application/json" \
   -d '{
     "min_interval": 0.1,
@@ -139,7 +159,7 @@ curl -X POST http://localhost:8001/update_interval \
 Simulate a DDoS attack from a specific region for 60 seconds:
 
 ```bash
-curl -X POST http://localhost:8001/simulate_ddos \
+curl -X POST http://localhost:9001/simulate_ddos \
   -H "Content-Type: application/json" \
   -d '{
     "duration_seconds": 60,
@@ -169,52 +189,62 @@ If no region is specified, one will be randomly selected.
 ### Example LogQL Queries
 
 ```logql
-# All logs from log-generator
-{container="log-generator"}
+# All logs from traffic-generator
+{container="traffic-generator"}
 
 # Only ERROR level logs
-{container="log-generator"} |= "ERROR"
+{container="traffic-generator"} |= "ERROR"
 
 # Logs with specific status code
-{container="log-generator", status_code="404"}
+{container="traffic-generator", status_code="404"}
 
 # Logs from specific HTTP method
-{container="log-generator", method="POST"}
+{container="traffic-generator", method="POST"}
 
 # Count logs per second
-rate({container="log-generator"}[1m])
+rate({container="traffic-generator"}[1m])
 
 # Filter by client IP pattern
-{container="log-generator"} | json | client_ip =~ "103\\..*"
+{container="traffic-generator"} | json | client_ip =~ "103\\..*"
 
 # Logs with status codes 5xx
-{container="log-generator", status_code=~"5.."}
+{container="traffic-generator", status_code=~"5.."}
 
 # Parse and filter by specific user
-{container="log-generator"} | json | user_id = "user_42"
+{container="traffic-generator"} | json | user_id = 1
+
+# Logs from specific country
+{container="traffic-generator", country_name="United States"}
+
+# Logs from specific city
+{container="traffic-generator", city_name="Tokyo"}
 ```
 
 ### Log Labels Available
 
 Promtail automatically extracts these labels from the JSON logs:
-- `container` - Container name (log-generator)
+- `container` - Container name (traffic-generator)
 - `container_id` - Docker container ID
 - `level` - Log level (INFO, WARN, ERROR)
 - `method` - HTTP method (GET, POST, etc.)
 - `status_code` - HTTP status code
+- `country_name` - Country name (e.g., "United States")
+- `city_name` - City name (e.g., "New York")
 
 ## 📈 Prometheus Metrics
 
-The log generator exposes the following metrics:
+The traffic generator exposes the following metrics:
 
 | Metric Name | Type | Description |
 |-------------|------|-------------|
 | `logs_generated_total` | Counter | Total number of logs generated |
 | `http_requests_total` | Counter | HTTP requests by method and status code |
+| `http_requests_by_location_total` | Counter | **HTTP requests by geographic location (country, city, lat, lon)** |
 | `ddos_simulation_active` | Gauge | Whether DDoS simulation is active (0 or 1) |
 | `ddos_simulation_remaining_seconds` | Gauge | Remaining seconds of DDoS simulation |
 | `api_requests_total` | Counter | Total API requests by endpoint |
-| `log_generation_interval_seconds` | Gauge | Current min/max intervals |
+| `traffic_generation_interval_seconds` | Gauge | Current min/max intervals |
+| `active_flows_total` | Gauge | Number of active user flows |
 
 ### Example Prometheus Queries
 
@@ -237,32 +267,43 @@ sum by (method) (rate(http_requests_total[1m]))
 To view the raw JSON logs being generated:
 
 ```bash
-docker-compose logs -f log-generator
+docker-compose logs -f traffic-generator
 ```
 
 Example log entry:
 ```json
 {
-  "timestamp": "2025-10-15T21:30:00.000000Z",
+  "timestamp": "2025-10-17T10:34:16.450671Z",
   "level": "INFO",
-  "client_ip": "103.45.123.89",
-  "user_id": "user_42",
+  "client_ip": "66.149.50.20",
+  "user_id": 1,
+  "user_name": "Leah Cole",
+  "session_id": "22b90e02-c17c-4ffe-b1af-94bcaab3cc0a",
   "http": {
     "request": {
       "method": "GET",
-      "referrer": "https://example.com/page"
+      "referrer": "http://www.baldwin.com/posts/blog/searchprivacy.html"
     },
     "response": {
       "status_code": 200,
-      "bytes": 1234
+      "bytes": 4979
     },
-    "url": "/products/widget/5678",
+    "url": "categories/explore",
     "version": "1.1"
   },
   "user_agent": {
-    "original": "Mozilla/5.0..."
+    "original": "Mozilla/5.0 (Windows CE; he-IL; rv:1.9.2.20) Gecko/8341-02-22 19:56:21.590637 Firefox/3.6.2"
   },
-  "message": "GET /products/widget/5678 - 200"
+  "message": "GET categories/explore - 200",
+  "geocode": {
+    "location": {
+      "lat": 43.6532,
+      "lon": -79.3832
+    },
+    "country_iso_code": "CA",
+    "country_name": "Canada",
+    "city_name": "Toronto"
+  }
 }
 ```
 
@@ -273,7 +314,7 @@ Example log entry:
 Edit `prometheus/prometheus.yml`:
 ```yaml
 scrape_configs:
-  - job_name: 'log-generator'
+  - job_name: 'traffic-generator'
     scrape_interval: 5s  # Change this value
 ```
 
@@ -291,17 +332,18 @@ grafana/provisioning/dashboards/
 
 They will be automatically loaded on Grafana startup.
 
-### Modifying Log Generation Behavior
+### Modifying Traffic Generation Behavior
 
-Edit `log-generator/log_generator.py` to customize:
-- IP address ranges
+Edit `traffic-generator/traffic_generator.py` to customize:
+- IP address ranges and geocoding data
 - HTTP methods and status codes
 - URL patterns
-- Log entry structure
+- User flows
+- Error generation logic
 
 Then rebuild the container:
 ```bash
-docker-compose up -d --build log-generator
+docker-compose up -d --build traffic-generator
 ```
 
 ## 🧪 Testing Scenarios
@@ -314,7 +356,7 @@ docker-compose up -d --build log-generator
 ### Scenario 2: High Traffic Simulation
 ```bash
 # Increase log generation rate
-curl -X POST http://localhost:8001/update_interval \
+curl -X POST http://localhost:9001/update_interval \
   -H "Content-Type: application/json" \
   -d '{"min_interval": 0.01, "max_interval": 0.05}'
 ```
@@ -322,7 +364,7 @@ curl -X POST http://localhost:8001/update_interval \
 ### Scenario 3: DDoS Attack Detection
 ```bash
 # Simulate 2-minute DDoS from Asia
-curl -X POST http://localhost:8001/simulate_ddos \
+curl -X POST http://localhost:9001/simulate_ddos \
   -H "Content-Type: application/json" \
   -d '{"duration_seconds": 120, "region": "Asia"}'
 ```

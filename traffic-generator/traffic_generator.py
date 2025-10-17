@@ -1,27 +1,44 @@
-"""
-Log generation module - handles all log generation logic
+"""Log generation module - handles all log generation logic
 """
 import time
 import json
 import random
+import uuid
+import sys
 from datetime import datetime
 from faker import Faker
+import requests
+from flow_manager import FlowManager
+from error_manager import ErrorManager
 
 fake = Faker()
 
-# Prometheus metrics will be imported from api.py when needed
-# This avoids circular imports
-_metrics_module = None
+# Load geo_servers configuration
+def load_geo_servers():
+    """Load geographic server configuration from geojson file."""
+    try:
+        with open('/app/geo_servers.geojson', 'r') as f:
+            data = json.load(f)
+            return data['features']
+    except Exception as e:
+        print(f"Warning: Could not load geo_servers.geojson: {e}", file=sys.stderr, flush=True)
+        return []
+
+GEO_SERVERS = load_geo_servers()
 
 
 class LogGeneratorConfig:
-    """Configuration for log generator."""
+    """Configuration for traffic generator."""
     def __init__(self):
+        self.traffic_enabled = True  # Traffic generation on/off
         self.min_interval = 0.2
         self.max_interval = 1.5
         self.ddos_active = False
         self.ddos_end_time = 0
         self.ddos_region = None
+        self.user_db_url = "http://user-database:8500"
+        self.flow_manager = FlowManager()
+        self.error_manager = ErrorManager()
 
 
 def get_region_geocode_data():
@@ -376,40 +393,101 @@ def generate_ip_from_region(region_name):
     return ip
 
 
-def generate_log_entry(override_ip=None, override_geocode=None):
-    """Generates a single, structured log entry with geocoding information."""
+def fetch_user_from_db(user_db_url):
+    """Fetch a random user from the user database API."""
+    try:
+        response = requests.get(f"{user_db_url}/user/random", timeout=5)
+        if response.status_code in [200, 201]:
+            user_data = response.json()
+            return user_data['id'], user_data['name']
+    except Exception as e:
+        print(f"Error fetching user from database: {e}", file=sys.stderr, flush=True)
     
-    # Simulate different HTTP methods
-    method = random.choice(["GET", "POST", "PUT", "DELETE", "PATCH"])
+    # Fallback to fake user if API fails
+    return None, fake.user_name()
+
+
+def generate_log_entry(override_ip=None, override_geocode=None, user_db_url=None, uri=None, flow_context=None, 
+                       is_ddos=False, error_manager=None, flow_manager=None):
+    """Generates a single, structured log entry with geocoding.
     
-    # Simulate common status codes, with a higher probability for 2xx and 4xx
-    status_code = random.choices(
-        [200, 201, 204, 301, 400, 401, 403, 404, 500, 503], 
-        weights=[15, 5, 2, 3, 5, 3, 2, 10, 4, 1], 
-        k=1
-    )[0]
+    Args:
+        override_ip: Override IP address (for DDoS simulation)
+        override_geocode: Override geocode data (for DDoS simulation)
+        user_db_url: URL of user database service
+        uri: Specific URI to use (from flow)
+        flow_context: Context from flow (IP, user agent, user info)
+        is_ddos: Whether this is a DDoS request
+        error_manager: ErrorManager instance for generating realistic errors
+        flow_manager: FlowManager instance for method mapping
+    """
     
-    # Generate a fake URL path
-    uri = fake.uri_path()
-    
-    # Add product or user context to some URLs
-    if random.random() < 0.3:
-        uri = f"/products/{fake.word()}/{random.randint(1000, 9999)}"
-    elif random.random() < 0.2:
-        uri = f"/users/{fake.user_name()}/profile"
-    
-    # Generate IP and geocode data
-    if override_ip:
-        client_ip = override_ip
-        geocode = override_geocode if override_geocode else None
+    # Use flow context if provided, otherwise generate new
+    if flow_context:
+        client_ip = flow_context.get('client_ip')
+        user_agent = flow_context.get('user_agent')
+        user_id = flow_context.get('user_id')
+        user_name = flow_context.get('user_name')
+        session_id = flow_context.get('session_id')  # Get session_id from flow
+        geocode = flow_context.get('geocode')  # Get geocode from flow
     else:
-        client_ip, geocode = generate_distributed_ip_with_geocode()
+        if override_ip:
+            client_ip = override_ip
+            geocode = override_geocode if override_geocode else None
+        else:
+            client_ip, geocode = generate_distributed_ip_with_geocode()
+        user_agent = fake.user_agent()
+        user_id, user_name = fetch_user_from_db(user_db_url) if user_db_url else (None, fake.user_name())
+        session_id = str(uuid.uuid4())  # Generate random session_id for anonymous requests
+    
+    # Determine HTTP method based on URI
+    if uri:
+        # Use flow_manager's method mapping if available
+        if flow_manager:
+            method = flow_manager.get_http_method(uri)
+        else:
+            # Fallback to GET if no flow_manager
+            method = "GET"
+    else:
+        # Random request
+        method = random.choice(["GET", "POST", "PUT", "DELETE", "PATCH"])
+        uri = fake.uri_path()
+        
+        # Add product or user context to some URLs
+        if random.random() < 0.3:
+            uri = f"/products/{fake.word()}/{random.randint(1000, 9999)}"
+        elif random.random() < 0.2 and user_id:
+            uri = f"/users/{user_id}/profile"
+        elif random.random() < 0.2:
+            uri = f"/users/{fake.user_name()}/profile"
+    
+    # Generate realistic status code and error message using ErrorManager
+    is_authenticated = user_id is not None
+    if error_manager:
+        status_code, error_message = error_manager.get_status_code(
+            uri=uri,
+            is_authenticated=is_authenticated,
+            is_ddos=is_ddos,
+            method=method
+        )
+        response_bytes = error_manager.get_response_bytes(status_code)
+    else:
+        # Fallback to simple random selection
+        status_code = random.choices(
+            [200, 201, 204, 301, 400, 401, 403, 404, 500, 503], 
+            weights=[15, 5, 2, 3, 5, 3, 2, 10, 4, 1], 
+            k=1
+        )[0]
+        error_message = f"HTTP {status_code}"
+        response_bytes = random.randint(50, 50000)
         
     log_data = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "level": "INFO" if status_code < 400 else ("ERROR" if status_code >= 500 else "WARN"),
         "client_ip": client_ip,
-        "user_id": f"user_{random.randint(1, 100)}",
+        "user_id": user_id,
+        "user_name": user_name,
+        "session_id": session_id,
         "http": {
             "request": {
                 "method": method,
@@ -417,82 +495,185 @@ def generate_log_entry(override_ip=None, override_geocode=None):
             },
             "response": {
                 "status_code": status_code,
-                "bytes": random.randint(50, 50000)
+                "bytes": response_bytes
             },
             "url": uri,
             "version": "1.1"
         },
         "user_agent": {
-            "original": fake.user_agent()
+            "original": user_agent
         },
         "message": f'{method} {uri} - {status_code}'
     }
     
+    # Add error message for non-success responses
+    if status_code >= 400 and error_manager:
+        log_data['error'] = error_message
+    
+    # Add flow name if part of a flow
+    if flow_context and 'flow_name' in flow_context:
+        log_data['flow_name'] = flow_context['flow_name']
+    
     # Add geocode information if available
     if geocode:
-        log_data["geocode"] = geocode
+        log_data['geocode'] = geocode
     
     return log_data
 
 
+def track_log_metrics(log_entry, metrics):
+    """Track Prometheus metrics for a log entry."""
+    if not metrics:
+        return
+    
+    metrics['logs_generated_total'].inc()
+    status_code = str(log_entry['http']['response']['status_code'])
+    method = log_entry['http']['request']['method']
+    metrics['http_requests_total'].labels(method=method, status_code=status_code).inc()
+    
+    # Track geographic metrics
+    if 'geocode' in log_entry:
+        geo = log_entry['geocode']
+        metrics['http_requests_by_location'].labels(
+            country=geo['country_name'],
+            city=geo['city_name'],
+            latitude=str(geo['location']['lat']),
+            longitude=str(geo['location']['lon'])
+        ).inc()
+
+
 def run_log_generator(config: LogGeneratorConfig, metrics=None):
-    """Main log generation loop."""
-    print("Log generator started", flush=True)
+    """Main traffic generation loop with Prometheus metrics support."""
+    print("Traffic generator started", file=sys.stderr, flush=True)
+    
+    # Wait for user database to be ready
+    print("Waiting for user database to be ready...", file=sys.stderr, flush=True)
+    max_retries = 30
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"{config.user_db_url}/health", timeout=2)
+            if response.status_code == 200:
+                print("User database is ready!", file=sys.stderr, flush=True)
+                break
+        except Exception:
+            pass
+        time.sleep(2)
+    else:
+        print("Warning: User database not responding, will use fallback users", file=sys.stderr, flush=True)
+    
+    last_cleanup = time.time()
+    
     while True:
+        # Check if traffic generation is enabled
+        if not config.traffic_enabled:
+            time.sleep(1)  # Sleep while paused
+            continue
+        
+        # Periodic cleanup of old flows
+        if time.time() - last_cleanup > 60:
+            config.flow_manager.cleanup_old_flows()
+            last_cleanup = time.time()
+        
         # Check if DDoS simulation is active
         if config.ddos_active and time.time() < config.ddos_end_time:
             # Generate DDoS traffic - many requests from same region
             ddos_ip, ddos_geocode = generate_ip_from_region_with_geocode(config.ddos_region)
-            burst_count = random.randint(50, 100)
-            for _ in range(burst_count):
-                log_entry = generate_log_entry(override_ip=ddos_ip, override_geocode=ddos_geocode)
+            for _ in range(random.randint(50, 100)):
+                log_entry = generate_log_entry(
+                    override_ip=ddos_ip,
+                    override_geocode=ddos_geocode,
+                    user_db_url=config.user_db_url,
+                    is_ddos=True,
+                    error_manager=config.error_manager,
+                    flow_manager=config.flow_manager
+                )
                 print(json.dumps(log_entry), flush=True)
-                
-                # Track metrics if available
-                if metrics:
-                    metrics['logs_generated_total'].inc()
-                    status_code = str(log_entry['http']['response']['status_code'])
-                    method = log_entry['http']['request']['method']
-                    metrics['http_requests_total'].labels(method=method, status_code=status_code).inc()
-                    
-                    # Track geographic metrics
-                    if 'geocode' in log_entry:
-                        geo = log_entry['geocode']
-                        metrics['http_requests_by_location'].labels(
-                            country=geo['country_name'],
-                            city=geo['city_name'],
-                            latitude=str(geo['location']['lat']),
-                            longitude=str(geo['location']['lon'])
-                        ).inc()
-            
+                track_log_metrics(log_entry, metrics)
             time.sleep(0.1)  # Short burst interval during DDoS
         elif config.ddos_active and time.time() >= config.ddos_end_time:
             # DDoS simulation ended
             config.ddos_active = False
             config.ddos_region = None
-            if metrics:
-                metrics['ddos_active_gauge'].set(0)
-            print(f"DDoS simulation ended", flush=True)
+            print(f"DDoS simulation ended", file=sys.stderr, flush=True)
         else:
-            # Normal traffic generation
-            log_entry = generate_log_entry()
-            print(json.dumps(log_entry), flush=True)
+            # Normal traffic generation with flows
             
-            # Track metrics if available
-            if metrics:
-                metrics['logs_generated_total'].inc()
-                status_code = str(log_entry['http']['response']['status_code'])
-                method = log_entry['http']['request']['method']
-                metrics['http_requests_total'].labels(method=method, status_code=status_code).inc()
+            # Decide: flow request or random request
+            if config.flow_manager.should_generate_random_request():
+                # Generate random request (anonymous user)
+                log_entry = generate_log_entry(
+                    user_db_url=config.user_db_url,
+                    error_manager=config.error_manager,
+                    flow_manager=config.flow_manager
+                )
+                print(json.dumps(log_entry), flush=True)
+                track_log_metrics(log_entry, metrics)
+                time.sleep(random.uniform(config.min_interval, config.max_interval))
+            else:
+                # Try to get next step from existing flow
+                flow_request = config.flow_manager.get_next_flow_request()
                 
-                # Track geographic metrics
-                if 'geocode' in log_entry:
-                    geo = log_entry['geocode']
-                    metrics['http_requests_by_location'].labels(
-                        country=geo['country_name'],
-                        city=geo['city_name'],
-                        latitude=str(geo['location']['lat']),
-                        longitude=str(geo['location']['lon'])
-                    ).inc()
-            
-            time.sleep(random.uniform(config.min_interval, config.max_interval))
+                if flow_request:
+                    # Continue existing flow
+                    uri, flow_context = flow_request
+                    log_entry = generate_log_entry(
+                        user_db_url=config.user_db_url,
+                        uri=uri,
+                        flow_context=flow_context,
+                        error_manager=config.error_manager,
+                        flow_manager=config.flow_manager
+                    )
+                    print(json.dumps(log_entry), flush=True)
+                    track_log_metrics(log_entry, metrics)
+                    time.sleep(config.flow_manager.get_step_delay())
+                else:
+                    # Start new flow
+                    # Get user from database
+                    user_id, user_name = fetch_user_from_db(config.user_db_url)
+                    client_ip, geocode = generate_distributed_ip_with_geocode()
+                    user_agent = fake.user_agent()
+                    
+                    # Start the flow (add geocode to flow context)
+                    flow = config.flow_manager.start_new_flow(
+                        client_ip=client_ip,
+                        user_agent=user_agent,
+                        user_id=user_id,
+                        user_name=user_name,
+                        geocode=geocode
+                    )
+                    
+                    if flow:
+                        # Generate first step of the flow
+                        flow_request = config.flow_manager.get_next_flow_request()
+                        if flow_request:
+                            uri, flow_context = flow_request
+                            log_entry = generate_log_entry(
+                                user_db_url=config.user_db_url,
+                                uri=uri,
+                                flow_context=flow_context,
+                                error_manager=config.error_manager,
+                                flow_manager=config.flow_manager
+                            )
+                            print(json.dumps(log_entry), flush=True)
+                            track_log_metrics(log_entry, metrics)
+                            time.sleep(config.flow_manager.get_step_delay())
+                        else:
+                            # Flow was abandoned immediately, generate random
+                            log_entry = generate_log_entry(
+                                user_db_url=config.user_db_url,
+                                error_manager=config.error_manager,
+                                flow_manager=config.flow_manager
+                            )
+                            print(json.dumps(log_entry), flush=True)
+                            track_log_metrics(log_entry, metrics)
+                            time.sleep(random.uniform(config.min_interval, config.max_interval))
+                    else:
+                        # Fallback to random if no flows configured
+                        log_entry = generate_log_entry(
+                            user_db_url=config.user_db_url,
+                            error_manager=config.error_manager,
+                            flow_manager=config.flow_manager
+                        )
+                        print(json.dumps(log_entry), flush=True)
+                        track_log_metrics(log_entry, metrics)
+                        time.sleep(random.uniform(config.min_interval, config.max_interval))

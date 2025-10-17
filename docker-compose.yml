@@ -1,10 +1,30 @@
 services:
-  # Log Generator Application
-  log-generator:
-    build: ./log-generator
-    container_name: log-generator
+  # User Database Service
+  user-database:
+    build: ./user-database
+    container_name: user-database
     ports:
-      - "8001:8000"
+      - "9500:8500"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # Server Assignment Service
+  server-assignment:
+    build: ./server-assignment
+    container_name: server-assignment
+    ports:
+      - "9600:8600"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # Traffic Generator Application
+  traffic-generator:
+    build: ./traffic-generator
+    container_name: traffic-generator
+    ports:
+      - "9001:8000"
     networks:
       - monitoring
     logging:
@@ -14,8 +34,11 @@ services:
         max-file: "3"
         labels: "container,service"
     labels:
-      container: "log-generator"
-      service: "log-generator"
+      container: "traffic-generator"
+      service: "traffic-generator"
+    depends_on:
+      - user-database
+      - server-assignment
     restart: unless-stopped
 
   # Prometheus - Metrics Collection
@@ -66,7 +89,7 @@ services:
       - monitoring
     depends_on:
       - loki
-      - log-generator
+      - traffic-generator
     restart: unless-stopped
 
   # Grafana - Visualization
