@@ -540,6 +540,24 @@ def track_log_metrics(log_entry, metrics):
             latitude=str(geo['location']['lat']),
             longitude=str(geo['location']['lon'])
         ).inc()
+    
+    # Track detailed metrics with URI, user, location and status
+    if 'http_requests_detailed' in metrics and 'geocode' in log_entry:
+        uri = log_entry['http']['url']
+        user_id = str(log_entry.get('user_id', 'anonymous'))
+        user_name = log_entry.get('user_name', 'anonymous')
+        session_id = log_entry.get('session_id', 'none')
+        geo = log_entry['geocode']
+        
+        metrics['http_requests_detailed'].labels(
+            uri=uri,
+            user_id=user_id,
+            user_name=user_name,
+            session_id=session_id,
+            country=geo['country_name'],
+            city=geo['city_name'],
+            status_code=status_code
+        ).inc()
 
 
 def run_log_generator(config: LogGeneratorConfig, metrics=None):
