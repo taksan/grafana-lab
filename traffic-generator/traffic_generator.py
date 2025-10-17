@@ -31,8 +31,8 @@ class LogGeneratorConfig:
     """Configuration for traffic generator."""
     def __init__(self):
         self.traffic_enabled = True  # Traffic generation on/off
-        self.min_interval = 0.2
-        self.max_interval = 1.5
+        self.min_interval = 0.1
+        self.max_interval = 3.0
         self.ddos_active = False
         self.ddos_end_time = 0
         self.ddos_region = None

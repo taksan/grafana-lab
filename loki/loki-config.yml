@@ -36,6 +36,47 @@ schema_config:
 ruler:
   alertmanager_url: http://localhost:9093
 
+# Limits configuration - Remove all rate limits for high-volume traffic
+limits_config:
+  # Ingestion rate limits
+  ingestion_rate_mb: 1000              # 1GB/s per tenant (default: 4MB)
+  ingestion_burst_size_mb: 2000        # 2GB burst (default: 6MB)
+  
+  # Stream limits
+  max_streams_per_user: 0              # Unlimited streams (default: 10000)
+  max_global_streams_per_user: 0       # Unlimited global streams (default: 5000)
+  
+  # Query limits
+  max_query_length: 0h                 # No time range limit (default: 721h)
+  max_query_lookback: 0h               # No lookback limit (default: 0h)
+  max_query_series: 100000             # Max series per query (default: 500)
+  max_entries_limit_per_query: 100000  # Max entries per query (default: 5000)
+  
+  # Chunk limits
+  max_chunks_per_query: 100000000      # Max chunks per query (default: 2000000)
+  
+  # Label limits
+  max_label_name_length: 10240         # Max label name length (default: 1024)
+  max_label_value_length: 10240        # Max label value length (default: 2048)
+  max_label_names_per_series: 100      # Max labels per series (default: 30)
+  
+  # Line size limits
+  max_line_size: 1048576               # 1MB per line (default: 256KB)
+  max_line_size_truncate: false        # Don't truncate lines
+  
+  # Cardinality limits
+  cardinality_limit: 1000000           # Max unique label combinations (default: 100000)
+  
+  # Per-stream rate limits
+  per_stream_rate_limit: 100MB         # Per stream rate limit (default: 3MB)
+  per_stream_rate_limit_burst: 200MB   # Per stream burst (default: 15MB)
+  
+  # Retention (0 = infinite)
+  retention_period: 0h                 # Keep logs forever (default: 744h/31d)
+  
+  # Split queries
+  split_queries_by_interval: 0h        # Don't split queries (default: 30m)
+
 # By default, Loki will send anonymous, but uniquely-identifiable usage and configuration
 # analytics to Grafana Labs. These statistics are sent to https://stats.grafana.org/
 #
