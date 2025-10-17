@@ -22,6 +22,8 @@ config = LogGeneratorConfig()
 # Prometheus Metrics
 logs_generated_total = Counter('logs_generated_total', 'Total number of logs generated')
 http_requests_total = Counter('http_requests_total', 'Total HTTP requests by method and status', ['method', 'status_code'])
+http_requests_by_location = Counter('http_requests_by_location_total', 'HTTP requests by geographic location', 
+                                    ['country', 'city', 'latitude', 'longitude'])
 ddos_active_gauge = Gauge('ddos_simulation_active', 'Whether DDoS simulation is currently active')
 ddos_duration_gauge = Gauge('ddos_simulation_remaining_seconds', 'Remaining seconds of DDoS simulation')
 api_requests_total = Counter('api_requests_total', 'Total API requests', ['endpoint', 'method'])
@@ -146,6 +148,7 @@ if __name__ == "__main__":
     metrics_dict = {
         'logs_generated_total': logs_generated_total,
         'http_requests_total': http_requests_total,
+        'http_requests_by_location': http_requests_by_location,
         'ddos_active_gauge': ddos_active_gauge
     }
     
