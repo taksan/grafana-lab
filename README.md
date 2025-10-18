@@ -1,6 +1,6 @@
-# Grafana + Prometheus Lab with Traffic Generator
+# Grafana Observability Lab
 
-A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a sophisticated traffic generator with geocoding, user flows, and DDoS simulation capabilities.
+A complete observability lab demonstrating **Grafana**, **Prometheus**, and **Loki** for metrics and logs monitoring. Includes a sophisticated traffic generator that produces realistic HTTP access logs with geocoding, user flows, and DDoS simulation capabilities.
 
 ## 🏗️ Architecture
 
@@ -12,16 +12,16 @@ A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a
                                   │
 ┌──────────────────┐              │ logs                    │
 │ Server Assign    │              ▼                         │
-│   Port: 9600     │       ┌──────────────┐                │
-└──────────────────┘       │   Promtail   │                │
-                           │  Port: 9080  │                │
-                           └──────┬───────┘                │
+│   Port: 9600     │       ┌──────────────┐                 │
+└──────────────────┘       │   Promtail   │                 │
+                           │  Port: 9080  │                 │
+                           └──────┬───────┘                 │
                                   │                         │
                                   ▼                         │
-                           ┌──────────────┐                │
-                           │     Loki     │                │
-                           │  Port: 3100  │                │
-                           └──────┬───────┘                │
+                           ┌──────────────┐                 │
+                           │     Loki     │                 │
+                           │  Port: 3100  │                 │
+                           └──────┬───────┘                 │
                                   │                         │
                                   ▼                         ▼
                            ┌─────────────────────────────────┐
@@ -30,52 +30,68 @@ A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a
                            └─────────────────────────────────┘
 ```
 
-## 📦 Components
+## 📦 Observability Stack
 
-### 1. Traffic Generator
-- **FastAPI** application that generates realistic HTTP access logs
+### Grafana
+The central visualization and dashboarding platform for the entire observability stack.
+
+- **Pre-configured datasources**: Prometheus (metrics) and Loki (logs)
+- **Auto-provisioned dashboard**: Traffic generator monitoring with geographic visualization
+- **Explore mode**: Interactive query builder for both metrics and logs
+- **Geomap support**: Visualize traffic by geographic location
+- **Default credentials**: `admin` / `admin`
+- **Access**: http://localhost:3001
+
+### Prometheus
+Time-series database for metrics collection and storage.
+
+- **Scrapes metrics** from traffic generator every 5 seconds
+- **PromQL**: Powerful query language for metrics analysis
+- **Targets view**: Monitor scrape health and status
+- **Access**: http://localhost:9090
+
+### Loki
+Log aggregation system optimized for Kubernetes and cloud-native environments.
+
+- **Aggregates logs** from all application containers
+- **LogQL**: Query language similar to PromQL for log analysis
+- **Label-based indexing**: Efficient log storage and retrieval
+- **Access**: http://localhost:3100
+
+### Promtail
+Log collection agent that ships logs to Loki.
+
+- **Docker service discovery**: Automatically detects and collects from containers
+- **JSON parsing**: Extracts structured fields from application logs
+- **Label extraction**: Creates queryable labels for efficient filtering
+- **Rootless Docker support**: Works in both standard and rootless environments
+- **Access**: http://localhost:9080
+
+> **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover containers on certain systems. This is tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). Promtail provides mature and reliable Docker service discovery.
+
+## 🎯 Application Components
+
+### Traffic Generator
+FastAPI application that generates realistic HTTP access logs for monitoring.
+
 - **Geocoding**: Simulates traffic from 11 countries, 30+ cities with accurate coordinates
 - **User Flows**: Multi-step user journeys (login, browse, checkout, etc.)
 - **Realistic Errors**: Context-aware error generation
-- Exposes Prometheus metrics at `/metrics` including geographic data
-- REST API for controlling traffic generation behavior
-- DDoS simulation feature by region
+- **Prometheus metrics**: Exposes `/metrics` endpoint with geographic data
+- **REST API**: Control traffic generation behavior dynamically
+- **DDoS simulation**: Simulate traffic spikes from specific regions
+- **Access**: http://localhost:9001 | **API Docs**: http://localhost:9001/docs
 
-### 2. User Database
-- Provides realistic user data for traffic simulation
+### User Database
+Provides realistic user data for traffic simulation.
+
 - REST API for user management
-- Accessible at `http://localhost:9500`
+- **Access**: http://localhost:9500
 
-### 3. Server Assignment
-- Manages server assignment logic
-- Accessible at `http://localhost:9600`
+### Server Assignment
+Manages server assignment logic for the traffic generator.
 
-### 4. Prometheus
-- Scrapes metrics from the traffic generator every 5 seconds
-- Stores time-series data
-- Accessible at `http://localhost:9090`
-
-### 5. Loki
-- Aggregates and stores logs from the traffic generator
-- Provides powerful log querying with LogQL
-- Accessible at `http://localhost:3100`
-
-### 6. Promtail
-- Log collector agent for Loki
-- Uses Docker service discovery to automatically detect containers
-- Parses JSON log format
-- Extracts labels for efficient querying
-- Accessible at `http://localhost:9080`
-
-> **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover any containers on certain systems. This is a known issue tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). We've switched to Promtail which has mature and reliable Docker service discovery.
-
-### 7. Grafana
-- Pre-configured with Prometheus and Loki datasources
-- Auto-provisioned dashboard for traffic generator metrics
-- Query and visualize both metrics and logs
-- **Geomap support** for geographic visualization
-- Default credentials: `admin` / `admin`
-- Accessible at `http://localhost:3001`
+- **Access**: http://localhost:9600
 
 ## 🚀 Quick Start
 
@@ -85,50 +101,90 @@ A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a
 
 ### Starting the Lab
 
-1. **Clone or navigate to the project directory:**
-   ```bash
-   cd /home/takeuchi/objective/entrevistas/grafana
-   ```
-
-2. **(Optional) For rootless Docker environments:**
-   
-   If you're using rootless Docker, create a `.env` file to specify your Docker socket path:
-   ```bash
-   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
-   ```
-   
-   For standard Docker installations, this step is not needed.
-
-3. **Start all services:**
+1. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-4. **Verify services are running:**
+2. **(Optional) For rootless Docker:**
+   
+   If you're using rootless Docker and Promtail fails to connect, create a `.env` file:
+   ```bash
+   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
+   docker-compose down && docker-compose up -d
+   ```
+
+3. **Verify services are running:**
    ```bash
    docker-compose ps
    ```
 
-5. **Access the services:**
-   - **Grafana**: http://localhost:3001 (admin/admin)
-   - **Prometheus**: http://localhost:9090
-   - **Loki**: http://localhost:3100
-   - **Promtail**: http://localhost:9080
-   - **Traffic Generator API**: http://localhost:9001
-   - **API Docs**: http://localhost:9001/docs
-   - **User Database**: http://localhost:9500
-   - **Server Assignment**: http://localhost:9600
+4. **View real-time logs:**
+   ```bash
+   docker-compose logs -f traffic-generator
+   ```
+
+### Access URLs
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Grafana Dashboard** | http://localhost:3001 | admin / admin |
+| **Prometheus** | http://localhost:9090 | - |
+| **Loki** | http://localhost:3100 | - |
+| **Promtail** | http://localhost:9080 | - |
+| **Traffic Generator API** | http://localhost:9001 | - |
+| **API Docs (Swagger)** | http://localhost:9001/docs | - |
+| **User Database** | http://localhost:9500 | - |
+| **Server Assignment** | http://localhost:9600 | - |
 
 ### Stopping the Lab
 
 ```bash
+# Stop services
 docker-compose down
-```
 
-To remove all data volumes:
-```bash
+# Stop and remove all data volumes
 docker-compose down -v
 ```
+
+## 🎯 Quick Tests
+
+### Check Traffic Generator Status
+```bash
+curl http://localhost:9001/status | jq
+```
+
+### Query Prometheus Metrics
+```bash
+# Total logs generated
+curl -s 'http://localhost:9090/api/v1/query?query=logs_generated_total' | jq
+
+# Log generation rate (per second)
+curl -s 'http://localhost:9090/api/v1/query?query=rate(logs_generated_total[1m])' | jq
+
+# HTTP requests by status code
+curl -s 'http://localhost:9090/api/v1/query?query=sum(http_requests_total)by(status_code)' | jq
+```
+
+### Increase Traffic Rate
+```bash
+curl -X POST http://localhost:9001/update_interval \
+  -H "Content-Type: application/json" \
+  -d '{"min_interval": 0.05, "max_interval": 0.2}'
+```
+
+### Simulate DDoS Attack
+```bash
+# 60-second DDoS simulation from Asia
+curl -X POST http://localhost:9001/simulate_ddos \
+  -H "Content-Type: application/json" \
+  -d '{"duration_seconds": 60, "region": "Asia"}'
+```
+
+Then watch the Grafana dashboard to see:
+- Spike in log generation rate
+- DDoS status indicator turns active
+- Countdown timer shows remaining time
 
 ## 📊 Grafana Dashboard
 
@@ -188,21 +244,24 @@ If no region is specified, one will be randomly selected.
 
 ## 📝 Querying Logs with Loki
 
-### Accessing Logs in Grafana
+### Using Grafana Explore
 
 1. Open Grafana at http://localhost:3001
-2. Go to **Explore** (compass icon in left sidebar)
+2. Click **Explore** (compass icon in left sidebar)
 3. Select **Loki** as the datasource
-4. Use LogQL to query logs
+4. Write LogQL queries to filter and analyze logs
 
-### Example LogQL Queries
+### LogQL Query Examples
 
 ```logql
 # All logs from traffic-generator
 {container="traffic-generator"}
 
+# All logs from any fake-traffic-generator service
+{service=~"traffic-generator|user-database|server-assignment"}
+
 # Only ERROR level logs
-{container="traffic-generator"} |= "ERROR"
+{container="traffic-generator", level="ERROR"}
 
 # Logs with specific status code
 {container="traffic-generator", status_code="404"}
@@ -210,35 +269,40 @@ If no region is specified, one will be randomly selected.
 # Logs from specific HTTP method
 {container="traffic-generator", method="POST"}
 
-# Count logs per second
+# Log rate (logs per second)
 rate({container="traffic-generator"}[1m])
 
 # Filter by client IP pattern
 {container="traffic-generator"} | json | client_ip =~ "103\\..*"
 
-# Logs with status codes 5xx
+# All 5xx server errors
 {container="traffic-generator", status_code=~"5.."}
-
-# Parse and filter by specific user
-{container="traffic-generator"} | json | user_id = 1
 
 # Logs from specific country
 {container="traffic-generator", country_name="United States"}
 
 # Logs from specific city
 {container="traffic-generator", city_name="Tokyo"}
+
+# Count errors by status code
+sum by (status_code) (count_over_time({container="traffic-generator", status_code=~"[45].."}[5m]))
 ```
 
-### Log Labels Available
+### Available Log Labels
 
-Promtail automatically extracts these labels from the JSON logs:
-- `container` - Container name (traffic-generator)
-- `container_id` - Docker container ID
-- `level` - Log level (INFO, WARN, ERROR)
-- `method` - HTTP method (GET, POST, etc.)
-- `status_code` - HTTP status code
-- `country_name` - Country name (e.g., "United States")
-- `city_name` - City name (e.g., "New York")
+Promtail automatically extracts these labels from JSON logs:
+
+| Label | Description | Example Values |
+|-------|-------------|----------------|
+| `container` | Container name | `traffic-generator`, `user-database`, `server-assignment` |
+| `service` | Service label | `traffic-generator`, `user-database`, `server-assignment` |
+| `level` | Log level | `INFO`, `WARN`, `ERROR` |
+| `method` | HTTP method | `GET`, `POST`, `PUT`, `DELETE` |
+| `status_code` | HTTP status code | `200`, `404`, `500` |
+| `country_name` | Country name | `United States`, `Japan`, `Brazil` |
+| `city_name` | City name | `New York`, `Tokyo`, `São Paulo` |
+| `user_name` | User name | Extracted from logs |
+| `flow_name` | User flow name | `login`, `browse`, `checkout` |
 
 ## 📈 Prometheus Metrics
 
@@ -394,20 +458,21 @@ Monitor the HTTP status code distribution panel to identify:
 .
 ├── docker-compose.yml              # Main orchestration file
 ├── README.md                       # This file
-├── log-generator/                  # Log generator application
-│   ├── Dockerfile
-│   ├── api.py                      # FastAPI application
-│   ├── log_generator.py            # Log generation logic
-│   └── requirements.txt
+├── .env.example                    # Environment variables for rootless Docker
+├── fake-traffic-generator/         # Traffic generator applications
+│   ├── traffic-generator/          # Main traffic generator
+│   ├── user-database/              # User data service
+│   └── server-assignment/          # Server assignment service
 ├── prometheus/
 │   └── prometheus.yml              # Prometheus configuration
+├── loki/
+│   └── loki-config.yml             # Loki configuration
+├── promtail/
+│   └── promtail-config.yml         # Promtail configuration
 └── grafana/
     └── provisioning/
-        ├── datasources/
-        │   └── prometheus.yml      # Auto-configured datasource
-        └── dashboards/
-            ├── dashboard.yml       # Dashboard provider config
-            └── log-generator-dashboard.json  # Pre-built dashboard
+        ├── datasources/            # Auto-configured datasources
+        └── dashboards/             # Pre-built dashboards
 ```
 
 ## 🐛 Troubleshooting
@@ -448,13 +513,14 @@ If you see errors like "permission denied" or "no such file or directory" for th
 
 ### Grafana shows "No data"
 1. Check Prometheus is scraping: http://localhost:9090/targets
-2. Verify log-generator is running: `docker-compose ps`
-3. Check metrics endpoint: http://localhost:8001/metrics
+2. Verify services are running: `docker-compose ps`
+3. Check metrics endpoint: http://localhost:9001/metrics
+4. Wait 15-30 seconds for initial data collection
 
 ### Metrics not updating
 ```bash
-# Restart the log generator
-docker-compose restart log-generator
+# Restart the traffic generator
+docker-compose restart traffic-generator
 
 # Check Prometheus scrape status
 curl http://localhost:9090/api/v1/targets
@@ -471,22 +537,41 @@ docker-compose logs grafana | grep -i provision
 
 ## 🎓 Learning Objectives
 
-This lab helps you learn:
-- ✅ Setting up Grafana and Prometheus with Docker Compose
-- ✅ Instrumenting applications with Prometheus metrics
-- ✅ Creating custom Grafana dashboards
-- ✅ Monitoring application behavior in real-time
-- ✅ Simulating and detecting traffic anomalies
+This lab demonstrates key observability concepts:
+
+### Metrics with Prometheus
+- ✅ Setting up Prometheus for metrics collection
+- ✅ Instrumenting applications with Prometheus client libraries
 - ✅ Writing PromQL queries for metrics analysis
+- ✅ Understanding metric types (Counter, Gauge)
+- ✅ Monitoring application behavior in real-time
+
+### Logs with Loki
+- ✅ Configuring Promtail for log collection
+- ✅ Using Docker service discovery for automatic log collection
+- ✅ Parsing structured JSON logs
+- ✅ Writing LogQL queries for log analysis
+- ✅ Label-based log indexing and filtering
+
+### Visualization with Grafana
+- ✅ Creating custom Grafana dashboards
+- ✅ Configuring datasources (Prometheus and Loki)
+- ✅ Using Grafana Explore for ad-hoc queries
+- ✅ Building panels with PromQL and LogQL
+- ✅ Geographic visualization with Geomap
+
+### Observability Best Practices
+- ✅ Correlating metrics and logs
+- ✅ Detecting anomalies and traffic patterns
+- ✅ Using labels effectively for filtering
+- ✅ Monitoring distributed systems
 
 ## 📝 License
 
 This is a lab/educational project. Feel free to modify and use as needed.
 
-## 🤝 Contributing
-
-This is a personal lab environment, but suggestions are welcome!
-
 ---
 
 **Happy Monitoring! 📊🚀**
+
+*Built with Grafana, Prometheus, and Loki - The modern observability stack*
