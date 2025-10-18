@@ -9,43 +9,35 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: containers
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-    
-    relabel_configs:
-      # We only want to scrape containers that have the 'service=fake-traffic-generator' label.
-      - source_labels: ['__meta_docker_container_label_service']
-        regex: 'fake-traffic-generator'
-        action: keep
-
-      # Create a 'container' label from the Docker container name
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: 'container'
+  # GELF listener for receiving logs from Docker GELF driver
+  - job_name: gelf
+    gelf:
+      listen_address: 0.0.0.0:12201
+      use_incoming_timestamp: true
+      labels:
+        job: gelf
 
     pipeline_stages:
-      # 1. Unpack the standard Docker JSON log format. This stage replaces
-      # the log line with the content of the "log" field and sets the timestamp.
-      - docker: {}
-
-      # 2. Parse the application's JSON log line. We extract all the fields
-      # we might want to use for labels or structured metadata.
+      # Step 1: Extract GELF metadata fields
       - json:
           expressions:
-            # Simple fields at the root level
+            log_message: short_message
+            container: _container_name
+            container_id: _container_id
+      
+      # Step 2: Parse the JSON from the log_message field
+      - json:
+          source: log_message
+          expressions:
             level: level
             client_ip: client_ip
             user_id: user_id
             message: message
-            # Nested fields using JMESPath
             method: http.request.method
             status_code: http.response.status_code
             bytes: http.response.bytes
             url: http.url
             user_agent: user_agent.original
-            # Geocode fields
             country_name: geocode.country_name
             country_code: geocode.country_iso_code
             city_name: geocode.city_name
@@ -55,9 +47,11 @@ scrape_configs:
             session_id: session_id
             user_name: user_name
 
-      # 3. Create Loki labels from some of the extracted fields.
-      # Best practice is to use low-cardinality fields for labels.
+      # Step 3: Create Loki labels from the extracted fields
       - labels:
+          tag:
+          container:
+          container_id:
           level:
           status_code:
           method:

@@ -1,5 +1,6 @@
 include:
-  - fake-traffic-generator/docker-compose.yml
+  - path: fake-traffic-generator/docker-compose.yml
+    env_file: .env
 
 services:
   # Prometheus - Metrics Collection
@@ -42,16 +43,19 @@ services:
     # Removed user directive to work in rootless environments
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/config.yml
-      # Support both rootful and rootless Docker socket locations
-      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/config.yml
     ports:
       - "9080:9080"
+      - "12201:12201/udp"  # GELF UDP port
     networks:
       - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - loki
-      - traffic-generator
     restart: unless-stopped
 
   # Grafana - Visualization
