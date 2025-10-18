@@ -18,13 +18,12 @@ scrape_configs:
         job: gelf
 
     pipeline_stages:
-      # Step 1: Extract GELF metadata fields
+      # Step 1: Extract GELF metadata fields and parse the JSON log
       - json:
           expressions:
             log_message: short_message
             container: _container_name
-            container_id: _container_id
-      
+
       # Step 2: Parse the JSON from the log_message field
       - json:
           source: log_message
@@ -47,11 +46,13 @@ scrape_configs:
             session_id: session_id
             user_name: user_name
 
-      # Step 3: Create Loki labels from the extracted fields
+      # Step 3: Replace the log line with the parsed JSON
+      - output:
+          source: log_message
+
+      # Step 4: Create Loki labels from the extracted fields
       - labels:
-          tag:
           container:
-          container_id:
           level:
           status_code:
           method:
