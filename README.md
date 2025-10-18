@@ -7,14 +7,16 @@ A complete observability lab demonstrating **Grafana**, **Prometheus**, and **Lo
 ```
 ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
 │  User Database   │────▶│ Traffic Gen     │────▶│   Prometheus     │
-│   Port: 9500     │     │  Port: 9001     │     │   Port: 9090     │
+│   Port: 8500     │     │  Port: 8000     │     │   Port: 9090     │
 └──────────────────┘     └────────┬────────┘     └──────────────────┘
-                                  │
-┌──────────────────┐              │ logs                    │
-│ Server Assign    │              ▼                         │
-│   Port: 9600     │       ┌──────────────┐                 │
-└──────────────────┘       │   Promtail   │                 │
+                          ↑       │                         │
+┌──────────────────┐      |       │ GELF logs               │
+│ Server Assign    │──────┘       │ (UDP 12201)             │
+│   Port: 8100     │              ▼                         │
+└──────────────────┘       ┌──────────────┐                 │
+                           │   Promtail   │                 │
                            │  Port: 9080  │                 │
+                           │  GELF: 12201 │                 │
                            └──────┬───────┘                 │
                                   │                         │
                                   ▼                         │
@@ -61,10 +63,10 @@ Log aggregation system optimized for Kubernetes and cloud-native environments.
 ### Promtail
 Log collection agent that ships logs to Loki.
 
-- **Docker service discovery**: Automatically detects and collects from containers
+- **GELF listener**: Receives logs via GELF protocol (UDP port 12201)
 - **JSON parsing**: Extracts structured fields from application logs
-- **Label extraction**: Creates queryable labels for efficient filtering
-- **Rootless Docker support**: Works in both standard and rootless environments
+- **Label extraction**: Creates queryable labels for efficient filtering (level, method, status_code, country, city, etc.)
+- **Container metadata**: Automatically extracts container name and ID from GELF messages
 - **Access**: http://localhost:9080
 
 > **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover containers on certain systems. This is tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). Promtail provides mature and reliable Docker service discovery.
@@ -80,7 +82,8 @@ FastAPI application that generates realistic HTTP access logs for monitoring.
 - **Prometheus metrics**: Exposes `/metrics` endpoint with geographic data
 - **REST API**: Control traffic generation behavior dynamically
 - **DDoS simulation**: Simulate traffic spikes from specific regions
-- **Access**: http://localhost:9001 | **API Docs**: http://localhost:9001/docs
+- **GELF logging**: Sends structured logs to Promtail via GELF protocol
+- **Access**: http://localhost:8000 | **API Docs**: http://localhost:8000/docs
 
 ### User Database
 Provides realistic user data for traffic simulation.
@@ -97,21 +100,20 @@ Manages server assignment logic for the traffic generator.
 
 ### Prerequisites
 - Docker
-- Docker Compose
 
 ### Starting the Lab
 
 1. **Start all services:**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 2. **(Optional) For rootless Docker:**
-   
+
    If you're using rootless Docker and Promtail fails to connect, create a `.env` file:
    ```bash
    echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
-   docker-compose down && docker-compose up -d
+   docker compose down && docker compose up -d
    ```
 
 3. **Verify services are running:**
@@ -132,10 +134,10 @@ Manages server assignment logic for the traffic generator.
 | **Prometheus** | http://localhost:9090 | - |
 | **Loki** | http://localhost:3100 | - |
 | **Promtail** | http://localhost:9080 | - |
-| **Traffic Generator API** | http://localhost:9001 | - |
-| **API Docs (Swagger)** | http://localhost:9001/docs | - |
-| **User Database** | http://localhost:9500 | - |
-| **Server Assignment** | http://localhost:9600 | - |
+| **Traffic Generator API** | http://localhost:8000 | - |
+| **API Docs (Swagger)** | http://localhost:8000/docs | - |
+| **User Database** | http://localhost:8500 | - |
+| **Server Assignment** | http://localhost:8100 | - |
 
 ### Stopping the Lab
 
@@ -151,7 +153,7 @@ docker-compose down -v
 
 ### Check Traffic Generator Status
 ```bash
-curl http://localhost:9001/status | jq
+curl http://localhost:8000/status | jq
 ```
 
 ### Query Prometheus Metrics
@@ -168,7 +170,7 @@ curl -s 'http://localhost:9090/api/v1/query?query=sum(http_requests_total)by(sta
 
 ### Increase Traffic Rate
 ```bash
-curl -X POST http://localhost:9001/update_interval \
+curl -X POST http://localhost:8000/update_interval \
   -H "Content-Type: application/json" \
   -d '{"min_interval": 0.05, "max_interval": 0.2}'
 ```
@@ -176,7 +178,7 @@ curl -X POST http://localhost:9001/update_interval \
 ### Simulate DDoS Attack
 ```bash
 # 60-second DDoS simulation from Asia
-curl -X POST http://localhost:9001/simulate_ddos \
+curl -X POST http://localhost:8000/simulate_ddos \
   -H "Content-Type: application/json" \
   -d '{"duration_seconds": 60, "region": "Asia"}'
 ```
@@ -203,16 +205,16 @@ The lab includes a pre-configured dashboard with the following panels:
 ## 🎮 Using the Traffic Generator API
 
 ### View API Documentation
-Open http://localhost:9001/docs for interactive Swagger documentation.
+Open http://localhost:8000/docs for interactive Swagger documentation.
 
 ### Check Status
 ```bash
-curl http://localhost:9001/status
+curl http://localhost:8000/status
 ```
 
 ### Update Traffic Generation Interval
 ```bash
-curl -X POST http://localhost:9001/update_interval \
+curl -X POST http://localhost:8000/update_interval \
   -H "Content-Type: application/json" \
   -d '{
     "min_interval": 0.1,
@@ -224,7 +226,7 @@ curl -X POST http://localhost:9001/update_interval \
 Simulate a DDoS attack from a specific region for 60 seconds:
 
 ```bash
-curl -X POST http://localhost:9001/simulate_ddos \
+curl -X POST http://localhost:8000/simulate_ddos \
   -H "Content-Type: application/json" \
   -d '{
     "duration_seconds": 60,
@@ -255,37 +257,37 @@ If no region is specified, one will be randomly selected.
 
 ```logql
 # All logs from traffic-generator
-{container="traffic-generator"}
+{container="traffic_generator"}
 
 # All logs from any fake-traffic-generator service
-{service=~"traffic-generator|user-database|server-assignment"}
+{service_name=~"traffic_generator|user_database|server_assignment"}
 
 # Only ERROR level logs
-{container="traffic-generator", level="ERROR"}
+{container="traffic_generator", level="ERROR"}
 
 # Logs with specific status code
-{container="traffic-generator", status_code="404"}
+{container="traffic_generator", status_code="404"}
 
 # Logs from specific HTTP method
-{container="traffic-generator", method="POST"}
+{container="traffic_generator", method="POST"}
 
 # Log rate (logs per second)
-rate({container="traffic-generator"}[1m])
+rate({container="traffic_generator"}[1m])
 
 # Filter by client IP pattern
-{container="traffic-generator"} | json | client_ip =~ "103\\..*"
+{container="traffic_generator"} | json | client_ip =~ "103\\..*"
 
 # All 5xx server errors
-{container="traffic-generator", status_code=~"5.."}
+{container="traffic_generator", status_code=~"5.."}
 
 # Logs from specific country
-{container="traffic-generator", country_name="United States"}
+{container="traffic_generator", country_name="China"}
 
 # Logs from specific city
-{container="traffic-generator", city_name="Tokyo"}
+{container="traffic_generator", city_name="Beijing"}
 
 # Count errors by status code
-sum by (status_code) (count_over_time({container="traffic-generator", status_code=~"[45].."}[5m]))
+sum by (status_code) (count_over_time({container="traffic_generator", status_code=~"[45].."}[5m]))
 ```
 
 ### Available Log Labels
@@ -294,15 +296,16 @@ Promtail automatically extracts these labels from JSON logs:
 
 | Label | Description | Example Values |
 |-------|-------------|----------------|
-| `container` | Container name | `traffic-generator`, `user-database`, `server-assignment` |
-| `service` | Service label | `traffic-generator`, `user-database`, `server-assignment` |
+| `container` | Container name | `traffic_generator`, `user_database`, `server_assignment` |
+| `container_id` | Full container ID | `fd17dcd918dd...` |
+| `service_name` | Service name (auto-generated by GELF) | `traffic_generator`, `user_database`, `server_assignment` |
 | `level` | Log level | `INFO`, `WARN`, `ERROR` |
-| `method` | HTTP method | `GET`, `POST`, `PUT`, `DELETE` |
+| `method` | HTTP method | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` |
 | `status_code` | HTTP status code | `200`, `404`, `500` |
-| `country_name` | Country name | `United States`, `Japan`, `Brazil` |
-| `city_name` | City name | `New York`, `Tokyo`, `São Paulo` |
+| `country_name` | Country name | `China`, `Brazil`, `United States` |
+| `city_name` | City name | `Beijing`, `São Paulo`, `New York` |
 | `user_name` | User name | Extracted from logs |
-| `flow_name` | User flow name | `login`, `browse`, `checkout` |
+| `flow_name` | User flow name | `purchase`, `browse_only`, `check_order_status` |
 
 ## 📈 Prometheus Metrics
 
@@ -416,7 +419,7 @@ Edit `traffic-generator/traffic_generator.py` to customize:
 
 Then rebuild the container:
 ```bash
-docker-compose up -d --build traffic-generator
+docker compose up -d --build traffic-generator
 ```
 
 ## 🧪 Testing Scenarios
@@ -486,35 +489,37 @@ docker-compose logs
 netstat -tuln | grep -E '3000|8000|9090'
 ```
 
-### Promtail can't connect to Docker socket (rootless Docker)
-If you see errors like "permission denied" or "no such file or directory" for the Docker socket:
+### No logs appearing in Loki
+If logs aren't showing up in Grafana:
 
-1. **Verify your Docker socket location:**
+1. **Verify Promtail is receiving GELF messages:**
    ```bash
-   echo $XDG_RUNTIME_DIR/docker.sock
-   # Or check: ls -la /run/user/$(id -u)/docker.sock
+   docker compose logs promtail | grep -i gelf
+   # Should show: "listening for GELF UDP messages"
    ```
 
-2. **Create a `.env` file with the correct path:**
+2. **Check if traffic generator is sending logs:**
    ```bash
-   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
+   docker compose logs traffic-generator | head -5
+   # Should show JSON log entries
    ```
 
-3. **Restart the services:**
+3. **Verify Loki is receiving logs:**
    ```bash
-   docker-compose down
-   docker-compose up -d
+   curl -s 'http://localhost:3100/loki/api/v1/labels' | jq
+   # Should show labels like: container, level, method, etc.
    ```
 
-4. **Verify Promtail is discovering containers:**
+4. **Check container connectivity:**
    ```bash
-   docker-compose logs promtail | grep -i discovery
+   docker compose ps
+   # All services should be "Up"
    ```
 
 ### Grafana shows "No data"
 1. Check Prometheus is scraping: http://localhost:9090/targets
 2. Verify services are running: `docker-compose ps`
-3. Check metrics endpoint: http://localhost:9001/metrics
+3. Check metrics endpoint: http://localhost:8000/metrics
 4. Wait 15-30 seconds for initial data collection
 
 ### Metrics not updating
@@ -547,11 +552,12 @@ This lab demonstrates key observability concepts:
 - ✅ Monitoring application behavior in real-time
 
 ### Logs with Loki
-- ✅ Configuring Promtail for log collection
-- ✅ Using Docker service discovery for automatic log collection
-- ✅ Parsing structured JSON logs
+- ✅ Configuring Promtail as a GELF listener
+- ✅ Using GELF protocol for structured log shipping
+- ✅ Parsing nested JSON from GELF messages
 - ✅ Writing LogQL queries for log analysis
 - ✅ Label-based log indexing and filtering
+- ✅ Extracting container metadata from GELF
 
 ### Visualization with Grafana
 - ✅ Creating custom Grafana dashboards
