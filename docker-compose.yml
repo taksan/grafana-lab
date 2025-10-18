@@ -7,6 +7,15 @@ services:
       - "9500:8500"
     networks:
       - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "container,service"
+    labels:
+      container: "user-database"
+      service: "fake-traffic-generator"
     restart: unless-stopped
 
   # Server Assignment Service
@@ -17,6 +26,15 @@ services:
       - "9600:8600"
     networks:
       - monitoring
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "container,service"
+    labels:
+      container: "server-assignment"
+      service: "fake-traffic-generator"
     restart: unless-stopped
 
   # Traffic Generator Application
@@ -38,7 +56,7 @@ services:
         labels: "container,service"
     labels:
       container: "traffic-generator"
-      service: "traffic-generator"
+      service: "fake-traffic-generator"
     depends_on:
       - user-database
       - server-assignment

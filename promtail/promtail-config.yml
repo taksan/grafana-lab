@@ -15,9 +15,9 @@ scrape_configs:
         refresh_interval: 5s
     
     relabel_configs:
-      # We only want to scrape containers that have the 'service=traffic-generator' label.
+      # We only want to scrape containers that have the 'service=fake-traffic-generator' label.
       - source_labels: ['__meta_docker_container_label_service']
-        regex: 'traffic-generator'
+        regex: 'fake-traffic-generator'
         action: keep
 
       # Create a 'container' label from the Docker container name
