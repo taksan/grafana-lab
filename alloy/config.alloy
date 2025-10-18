@@ -1,0 +1,72 @@
+// Grafana Alloy configuration for GELF log collection
+
+// GELF listener - receives logs from Docker GELF driver
+loki.source.gelf "gelf_listener" {
+  listen_address         = "0.0.0.0:12201"
+  use_incoming_timestamp = true
+  
+  forward_to = [loki.process.parse_json.receiver]
+}
+
+// Process and parse GELF messages
+loki.process "parse_json" {
+  // Step 1: Extract GELF metadata and short_message
+  stage.json {
+    expressions = {
+      log_message = "short_message",
+      container   = "_container_name",
+    }
+  }
+  
+  // Step 2: Parse the JSON from short_message
+  stage.json {
+    source = "log_message"
+    expressions = {
+      level        = "level",
+      client_ip    = "client_ip",
+      user_id      = "user_id",
+      message      = "message",
+      method       = "http.request.method",
+      status_code  = "http.response.status_code",
+      bytes        = "http.response.bytes",
+      url          = "http.url",
+      user_agent   = "user_agent.original",
+      country_name = "geocode.country_name",
+      country_code = "geocode.country_iso_code",
+      city_name    = "geocode.city_name",
+      geo_lat      = "geocode.location.lat",
+      geo_lon      = "geocode.location.lon",
+      flow_name    = "flow_name",
+      session_id   = "session_id",
+      user_name    = "user_name",
+    }
+  }
+  
+  // Step 3: Replace the log line with the parsed JSON
+  stage.output {
+    source = "log_message"
+  }
+  
+  // Step 4: Create Loki labels from extracted fields
+  stage.labels {
+    values = {
+      container    = "",
+      level        = "",
+      status_code  = "",
+      method       = "",
+      country_name = "",
+      city_name    = "",
+      user_name    = "",
+      flow_name    = "",
+    }
+  }
+  
+  forward_to = [loki.write.default.receiver]
+}
+
+// Write to Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

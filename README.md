@@ -14,8 +14,8 @@ A complete observability lab demonstrating **Grafana**, **Prometheus**, and **Lo
 │ Server Assign    │──────┘       │ (UDP 12201)             │
 │   Port: 8100     │              ▼                         │
 └──────────────────┘       ┌──────────────┐                 │
-                           │   Promtail   │                 │
-                           │  Port: 9080  │                 │
+                           │     Alloy    │                 │
+                           │  UI: 12345   │                 │
                            │  GELF: 12201 │                 │
                            └──────┬───────┘                 │
                                   │                         │
@@ -60,16 +60,15 @@ Log aggregation system optimized for Kubernetes and cloud-native environments.
 - **Label-based indexing**: Efficient log storage and retrieval
 - **Access**: http://localhost:3100
 
-### Promtail
-Log collection agent that ships logs to Loki.
+### Grafana Alloy
+Next-generation observability data collector that ships logs to Loki.
 
 - **GELF listener**: Receives logs via GELF protocol (UDP port 12201)
 - **JSON parsing**: Extracts structured fields from application logs
 - **Label extraction**: Creates queryable labels for efficient filtering (level, method, status_code, country, city, etc.)
 - **Container metadata**: Automatically extracts container name and ID from GELF messages
-- **Access**: http://localhost:9080
-
-> **Note on Grafana Alloy**: We initially planned to use Grafana Alloy (the next-generation replacement for Promtail), but encountered a bug where `discovery.docker` fails to discover containers on certain systems. This is tracked at [grafana/alloy#3054](https://github.com/grafana/alloy/issues/3054). Promtail provides mature and reliable Docker service discovery.
+- **Web UI**: Built-in UI for monitoring component status and configuration
+- **Access**: http://localhost:12345
 
 ## 🎯 Application Components
 
@@ -108,22 +107,14 @@ Manages server assignment logic for the traffic generator.
    docker compose up -d
    ```
 
-2. **(Optional) For rootless Docker:**
-
-   If you're using rootless Docker and Promtail fails to connect, create a `.env` file:
+2. **Verify services are running:**
    ```bash
-   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
-   docker compose down && docker compose up -d
+   docker compose ps
    ```
 
-3. **Verify services are running:**
+3. **View real-time logs:**
    ```bash
-   docker-compose ps
-   ```
-
-4. **View real-time logs:**
-   ```bash
-   docker-compose logs -f traffic-generator
+   docker compose logs -f traffic-generator
    ```
 
 ### Access URLs
@@ -133,7 +124,7 @@ Manages server assignment logic for the traffic generator.
 | **Grafana Dashboard** | http://localhost:3001 | admin / admin |
 | **Prometheus** | http://localhost:9090 | - |
 | **Loki** | http://localhost:3100 | - |
-| **Promtail** | http://localhost:9080 | - |
+| **Alloy UI** | http://localhost:12345 | - |
 | **Traffic Generator API** | http://localhost:8000 | - |
 | **API Docs (Swagger)** | http://localhost:8000/docs | - |
 | **User Database** | http://localhost:8500 | - |
@@ -461,7 +452,6 @@ Monitor the HTTP status code distribution panel to identify:
 .
 ├── docker-compose.yml              # Main orchestration file
 ├── README.md                       # This file
-├── .env.example                    # Environment variables for rootless Docker
 ├── fake-traffic-generator/         # Traffic generator applications
 │   ├── traffic-generator/          # Main traffic generator
 │   ├── user-database/              # User data service
@@ -470,8 +460,8 @@ Monitor the HTTP status code distribution panel to identify:
 │   └── prometheus.yml              # Prometheus configuration
 ├── loki/
 │   └── loki-config.yml             # Loki configuration
-├── promtail/
-│   └── promtail-config.yml         # Promtail configuration
+├── alloy/
+│   └── config.alloy                # Alloy configuration
 └── grafana/
     └── provisioning/
         ├── datasources/            # Auto-configured datasources
@@ -492,9 +482,9 @@ netstat -tuln | grep -E '3000|8000|9090'
 ### No logs appearing in Loki
 If logs aren't showing up in Grafana:
 
-1. **Verify Promtail is receiving GELF messages:**
+1. **Verify Alloy is receiving GELF messages:**
    ```bash
-   docker compose logs promtail | grep -i gelf
+   docker compose logs alloy | grep -i gelf
    # Should show: "listening for GELF UDP messages"
    ```
 
@@ -552,9 +542,9 @@ This lab demonstrates key observability concepts:
 - ✅ Monitoring application behavior in real-time
 
 ### Logs with Loki
-- ✅ Configuring Promtail as a GELF listener
+- ✅ Configuring Grafana Alloy as a GELF listener
 - ✅ Using GELF protocol for structured log shipping
-- ✅ Parsing nested JSON from GELF messages
+- ✅ Parsing nested JSON from GELF messages with Alloy pipelines
 - ✅ Writing LogQL queries for log analysis
 - ✅ Label-based log indexing and filtering
 - ✅ Extracting container metadata from GELF
