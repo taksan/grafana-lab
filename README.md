@@ -90,17 +90,26 @@ A complete monitoring lab environment featuring Grafana, Prometheus, Loki, and a
    cd /home/takeuchi/objective/entrevistas/grafana
    ```
 
-2. **Start all services:**
+2. **(Optional) For rootless Docker environments:**
+   
+   If you're using rootless Docker, create a `.env` file to specify your Docker socket path:
+   ```bash
+   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
+   ```
+   
+   For standard Docker installations, this step is not needed.
+
+3. **Start all services:**
    ```bash
    docker-compose up -d
    ```
 
-3. **Verify services are running:**
+4. **Verify services are running:**
    ```bash
    docker-compose ps
    ```
 
-4. **Access the services:**
+5. **Access the services:**
    - **Grafana**: http://localhost:3001 (admin/admin)
    - **Prometheus**: http://localhost:9090
    - **Loki**: http://localhost:3100
@@ -411,6 +420,31 @@ docker-compose logs
 # Ensure ports are not in use
 netstat -tuln | grep -E '3000|8000|9090'
 ```
+
+### Promtail can't connect to Docker socket (rootless Docker)
+If you see errors like "permission denied" or "no such file or directory" for the Docker socket:
+
+1. **Verify your Docker socket location:**
+   ```bash
+   echo $XDG_RUNTIME_DIR/docker.sock
+   # Or check: ls -la /run/user/$(id -u)/docker.sock
+   ```
+
+2. **Create a `.env` file with the correct path:**
+   ```bash
+   echo "DOCKER_SOCK=/run/user/$(id -u)/docker.sock" > .env
+   ```
+
+3. **Restart the services:**
+   ```bash
+   docker-compose down
+   docker-compose up -d
+   ```
+
+4. **Verify Promtail is discovering containers:**
+   ```bash
+   docker-compose logs promtail | grep -i discovery
+   ```
 
 ### Grafana shows "No data"
 1. Check Prometheus is scraping: http://localhost:9090/targets

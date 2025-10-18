@@ -1,7 +1,7 @@
 services:
   # User Database Service
   user-database:
-    build: ./user-database
+    build: ./fake-traffic-generator/user-database
     container_name: user-database
     ports:
       - "9500:8500"
@@ -11,7 +11,7 @@ services:
 
   # Server Assignment Service
   server-assignment:
-    build: ./server-assignment
+    build: ./fake-traffic-generator/server-assignment
     container_name: server-assignment
     ports:
       - "9600:8600"
@@ -21,7 +21,7 @@ services:
 
   # Traffic Generator Application
   traffic-generator:
-    build: ./traffic-generator
+    build: ./fake-traffic-generator/traffic-generator
     container_name: traffic-generator
     ports:
       - "9001:8000"
@@ -81,10 +81,11 @@ services:
   promtail:
     image: grafana/promtail:latest
     container_name: promtail
-    user: "0:998"  # root user with docker group
+    # Removed user directive to work in rootless environments
     volumes:
       - ./promtail/promtail-config.yml:/etc/promtail/config.yml
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Support both rootful and rootless Docker socket locations
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/config.yml
     ports:
       - "9080:9080"
