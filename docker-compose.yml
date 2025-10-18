@@ -1,67 +1,7 @@
+include:
+  - fake-traffic-generator/docker-compose.yml
+
 services:
-  # User Database Service
-  user-database:
-    build: ./fake-traffic-generator/user-database
-    container_name: user-database
-    ports:
-      - "9500:8500"
-    networks:
-      - monitoring
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "container,service"
-    labels:
-      container: "user-database"
-      service: "fake-traffic-generator"
-    restart: unless-stopped
-
-  # Server Assignment Service
-  server-assignment:
-    build: ./fake-traffic-generator/server-assignment
-    container_name: server-assignment
-    ports:
-      - "9600:8600"
-    networks:
-      - monitoring
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "container,service"
-    labels:
-      container: "server-assignment"
-      service: "fake-traffic-generator"
-    restart: unless-stopped
-
-  # Traffic Generator Application
-  traffic-generator:
-    build: ./fake-traffic-generator/traffic-generator
-    container_name: traffic-generator
-    ports:
-      - "9001:8000"
-    volumes:
-      - ./user_flows.yml:/app/user_flows.yml:ro
-      - ./geo_servers.geojson:/app/geo_servers.geojson:ro
-    networks:
-      - monitoring
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "container,service"
-    labels:
-      container: "traffic-generator"
-      service: "fake-traffic-generator"
-    depends_on:
-      - user-database
-      - server-assignment
-    restart: unless-stopped
-
   # Prometheus - Metrics Collection
   prometheus:
     image: prom/prometheus:latest
@@ -136,6 +76,7 @@ services:
 
 networks:
   monitoring:
+    name: monitoring
     driver: bridge
 
 volumes:

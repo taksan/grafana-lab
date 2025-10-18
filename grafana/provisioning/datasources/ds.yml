@@ -17,4 +17,4 @@ datasources:
     isDefault: false
     editable: true
     jsonData:
-      maxLines: 1000
+      maxLines: 10000
